@@ -19,18 +19,27 @@ export const REQUIRED_META_SCOPES = [
 
 /**
  * Builds the official Meta OAuth 2.0 Authorization URL for Instagram Business connection.
+ * Supports Meta Business Login config_id if configured.
  */
 export function getMetaOAuthUrl(state: string, redirectUri: string): string {
   const appId = process.env.NEXT_PUBLIC_META_APP_ID || process.env.META_APP_ID || '';
-  const params = new URLSearchParams({
+  const configId = process.env.NEXT_PUBLIC_META_CONFIG_ID || process.env.META_CONFIG_ID || '';
+
+  const paramsObj: Record<string, string> = {
     client_id: appId,
     redirect_uri: redirectUri,
     state,
-    scope: REQUIRED_META_SCOPES.join(','),
     response_type: 'code',
     auth_type: 'rerequest',
-  });
+  };
 
+  if (configId) {
+    paramsObj.config_id = configId;
+  } else {
+    paramsObj.scope = REQUIRED_META_SCOPES.join(',');
+  }
+
+  const params = new URLSearchParams(paramsObj);
   return `https://www.facebook.com/${META_GRAPH_VERSION}/dialog/oauth?${params.toString()}`;
 }
 
