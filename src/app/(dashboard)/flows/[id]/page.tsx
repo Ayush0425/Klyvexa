@@ -14,6 +14,8 @@ import {
   UserCheck,
   CheckCircle2,
   Lock,
+  Image as ImageIcon,
+  Link2,
 } from 'lucide-react';
 import { SafetyScoreBadge } from '@/components/safety/SafetyScoreBadge';
 
@@ -44,12 +46,13 @@ export default function FlowCanvasPage() {
     {
       id: 'node_3',
       type: 'MESSAGE',
-      title: '3. Outbound DM (5 Paraphrases + Mandatory Disclosure)',
-      description: 'Delivers download link with 5 randomized variations and first-touch disclosure.',
+      title: '3. Outbound DM (5 Paraphrases + Media Image Attachment)',
+      description: 'Delivers text copy + picture attachment directly to user DM.',
       config: {
         variationsActive: 5,
         disclosureMandatory: true,
-        text: 'Saw your comment and wanted to send the full details right over: https://klyvexa.com/vip',
+        text: 'Saw your comment and wanted to send the full details right over!',
+        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
       },
     },
     {
@@ -67,6 +70,10 @@ export default function FlowCanvasPage() {
       config: { fieldType: 'EMAIL', validationRegex: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$' },
     },
   ]);
+
+  const [imageUrl, setImageUrl] = useState(
+    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
+  );
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -94,7 +101,7 @@ export default function FlowCanvasPage() {
               <SafetyScoreBadge score={100} size="sm" />
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Visual low-code canvas with 24h messaging window lock & 5+ anti-spam variations.
+              Visual low-code canvas with 24h messaging window lock & media image attachment.
             </p>
           </div>
         </div>
@@ -158,11 +165,47 @@ export default function FlowCanvasPage() {
                   <p className="text-xs text-slate-500 mt-1">{node.description}</p>
                 </div>
 
+                {/* Editable Picture Attachment Field for Node 3 */}
+                {node.type === 'MESSAGE' && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                        <ImageIcon className="h-4 w-4 text-blue-600" />
+                        <span>Media Picture Attachment URL</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400">Meta Graph API Payload</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        placeholder="Paste image URL (https://...)"
+                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {imageUrl && (
+                      <div className="relative h-28 w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                        <img
+                          src={imageUrl}
+                          alt="VIP Guide Attachment"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Node Details / Badges */}
                 <div className="rounded-xl bg-slate-50 p-3 border border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
                   {node.type === 'MESSAGE' && (
                     <>
-                      <span className="font-medium text-emerald-700">✅ 5 Paraphrases Active</span>
+                      <span className="font-medium text-emerald-700">✅ 5 Paraphrases + Image Payload Active</span>
                       <span className="text-slate-400 font-mono">100% Unique copy per send</span>
                     </>
                   )}
