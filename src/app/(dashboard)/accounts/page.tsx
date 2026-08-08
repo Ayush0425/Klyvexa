@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Instagram, ShieldCheck, Lock, Power, CheckCircle2, Sparkles, AlertCircle } from 'lucide-react';
+import { Instagram, ShieldCheck, Lock, Power, CheckCircle2, Sparkles } from 'lucide-react';
 import { MetaConnectButton } from '@/components/accounts/MetaConnectButton';
 import { SafetyScoreBadge } from '@/components/safety/SafetyScoreBadge';
 import { SafeModeBanner } from '@/components/safety/SafeModeBanner';
@@ -22,7 +22,7 @@ interface MockAccount {
   webhookSubscribed: boolean;
 }
 
-export default function AccountsManagementPage() {
+function AccountsContent() {
   const searchParams = useSearchParams();
   const isSuccess = searchParams?.get('success') === 'true';
   const isSandbox = searchParams?.get('sandbox') === 'true';
@@ -186,5 +186,13 @@ export default function AccountsManagementPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function AccountsManagementPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-xs text-slate-400">Loading accounts...</div>}>
+      <AccountsContent />
+    </Suspense>
   );
 }
