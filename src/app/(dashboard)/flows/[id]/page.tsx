@@ -28,6 +28,10 @@ interface VisualNode {
 }
 
 export default function FlowCanvasPage() {
+  const [imageUrl, setImageUrl] = useState(
+    'https://klyvexa.vercel.app/uploads/vip-guide.png'
+  );
+
   const [nodes, setNodes] = useState<VisualNode[]>([
     {
       id: 'node_1',
@@ -52,7 +56,7 @@ export default function FlowCanvasPage() {
         variationsActive: 5,
         disclosureMandatory: true,
         text: 'Saw your comment and wanted to send the full details right over!',
-        imageUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80',
+        imageUrl: 'https://klyvexa.vercel.app/uploads/vip-guide.png',
       },
     },
     {
@@ -70,10 +74,6 @@ export default function FlowCanvasPage() {
       config: { fieldType: 'EMAIL', validationRegex: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$' },
     },
   ]);
-
-  const [imageUrl, setImageUrl] = useState(
-    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80'
-  );
 
   const [isSaved, setIsSaved] = useState(false);
 
@@ -182,12 +182,12 @@ export default function FlowCanvasPage() {
                         value={imageUrl}
                         onChange={(e) => setImageUrl(e.target.value)}
                         placeholder="Paste image URL (https://...)"
-                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                       />
                     </div>
 
                     {imageUrl && (
-                      <div className="relative h-28 w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
+                      <div className="relative h-44 w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100 flex items-center justify-center">
                         <img
                           src={imageUrl}
                           alt="VIP Guide Attachment"
