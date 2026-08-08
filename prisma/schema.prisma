@@ -1,0 +1,348 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  AGENT
+  VIEWER
+}
+
+enum AccountType {
+  BUSINESS
+  CREATOR
+}
+
+enum TriggerType {
+  COMMENT_KEYWORD
+  COMMENT_ANY
+  STORY_REPLY
+  STORY_MENTION
+  INBOUND_DM_KEYWORD
+  INBOUND_DM_ANY
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  DROPPED_SAFETY
+  PENDING_HUMAN_REVIEW // Used in Safe Mode for the first 50 DMs
+}
+
+enum FlowStatus {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  ARCHIVED
+}
+
+model User {
+  id            String            @id @default(cuid())
+  name          String?
+  email         String            @unique
+  emailVerified DateTime?
+  image         String?
+  passwordHash  String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  
+  workspaces    WorkspaceMember[]
+  auditLogs     AuditLog[]
+}
+
+model Workspace {
+  id                String            @id @default(cuid())
+  name              String
+  slug              String            @unique
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  members           WorkspaceMember[]
+  instagramAccounts InstagramAccount[]
+  flows             AutomationFlow[]
+  contacts          Contact[]
+  auditLogs         AuditLog[]
+  rateLimitConfig   RateLimitConfig?
+  knowledgeBases    KnowledgeBase[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role      @default(ADMIN)
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+model InstagramAccount {
+  id                   String           @id @default(cuid())
+  workspaceId          String
+  igUserId             String           @unique // Instagram Scoped User ID (IGSID / Page-scoped IG ID)
+  pageId               String           // Connected Facebook Page ID
+  username             String
+  name                 String?
+  profilePictureUrl    String?
+  accountType          AccountType      @default(BUSINESS)
+  
+  // Encrypted OAuth Tokens (AES-256-GCM Vault)
+  encryptedAccessToken String           @db.Text
+  tokenIv              String
+  tokenAuthTag         String
+  tokenExpiresAt       DateTime
+  
+  webhookSubscribed    Boolean          @default(false)
+  isActive             Boolean          @default(true)
+  isPausedSafety       Boolean          @default(false) // Circuit breaker flag
+
+  // --- REFINED SAFETY & COMPLIANCE GUARDS ---
+  isSafeMode           Boolean          @default(true)  // Forces ultra-conservative limits & human review on first 50 DMs
+  safetyScore          Int              @default(98)    // Dynamic score (0-100) based on error rates and policy adherence
+  totalAutomatedDMs    Int              @default(0)     // Tracks lifetime DMs for Safe Mode 50-DM graduation
+  
+  // Refined Conservative Soft Limits
+  hourlyLimit          Int              @default(250)   // Conservative hourly cap (Approved refinement)
+  dailyLimit           Int              @default(1500)  // Conservative daily cap (Approved refinement: 1,500)
+  currentHourCount     Int              @default(0)
+  currentDayCount      Int              @default(0)
+  lastResetAt          DateTime         @default(now())
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  workspace            Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flows                AutomationFlow[]
+  conversations        Conversation[]
+  triggers             Trigger[]
+
+  @@index([workspaceId, isActive])
+  @@index([igUserId])
+}
+
+model AutomationFlow {
+  id                   String           @id @default(cuid())
+  workspaceId          String
+  instagramAccountId   String
+  name                 String
+  description          String?
+  status               FlowStatus       @default(DRAFT)
+  
+  // Visual Flow Graph JSON (@xyflow/react canvas)
+  nodesJson            Json             
+  edgesJson            Json             
+  
+  // Non-negotiable Compliance & Guardrails
+  requireDisclosure    Boolean          @default(true)  // "Hi! I'm an automated assistant for [Brand]..."
+  optOutKeywordEnabled Boolean          @default(true)  // Automatic STOP / UNSUBSCRIBE interception
+  maxExecutionsPerUser Int              @default(3)     // Strict anti-looping guard per contact
+  cooldownMinutes      Int              @default(60)
+
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  workspace            Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instagramAccount     InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  triggers             Trigger[]
+  executions           FlowExecution[]
+
+  @@index([workspaceId, status])
+}
+
+model Trigger {
+  id                 String           @id @default(cuid())
+  flowId             String
+  instagramAccountId String
+  type               TriggerType
+  
+  // Matching criteria
+  matchingKeywords   String[]         // e.g. ["VIP", "DEMO", "INFO", "PRICING"]
+  isExactMatch       Boolean          @default(false)
+  caseSensitive      Boolean          @default(false)
+  mediaFilterIds     String[]         // Specific Post/Reel IDs to listen to, or empty for all
+  
+  // Public comment response (Optional safe first-touch acknowledgement)
+  publicReplyEnabled Boolean          @default(false)
+  publicReplies      String[]         // E.g. ["Check your DM! 📩", "Sent details to your inbox! ✨"]
+  
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  flow               AutomationFlow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  instagramAccount   InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+}
+
+model Contact {
+  id                 String           @id @default(cuid())
+  workspaceId        String
+  igsid              String           // Instagram Scoped ID for the recipient
+  username           String?
+  name               String?
+  profilePic         String?
+  
+  // 24-Hour Messaging Window & Compliance Tracking
+  optOutStatus       Boolean          @default(false)
+  optOutAt           DateTime?
+  firstSeenAt        DateTime         @default(now())
+  lastInteractionAt  DateTime         @default(now())
+  windowExpiresAt    DateTime         // lastInteractionAt + 24 hours (strictly enforced)
+  
+  // Lead Capture & Qualification
+  capturedEmail      String?
+  capturedPhone      String?
+  customFields       Json?            // Arbitrary validated lead data
+  leadScore          Int              @default(0)
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations      Conversation[]
+  flowExecutions     FlowExecution[]
+
+  @@unique([workspaceId, igsid])
+  @@index([workspaceId, igsid])
+  @@index([windowExpiresAt])
+}
+
+model Conversation {
+  id                 String           @id @default(cuid())
+  instagramAccountId String
+  contactId          String
+  
+  // Live Handoff State
+  isHumanHandoff     Boolean          @default(false)
+  humanHandoffAt     DateTime?
+  humanAgentId       String?          // User ID of team member handling chat
+  
+  // Disclosure Tracking
+  disclosureSent     Boolean          @default(false)
+  disclosureSentAt   DateTime?
+  
+  lastMessageSnippet String?
+  lastMessageAt      DateTime         @default(now())
+  unreadCount        Int              @default(0)
+
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  instagramAccount   InstagramAccount @relation(fields: [instagramAccountId], references: [id], onDelete: Cascade)
+  contact            Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages           Message[]
+
+  @@unique([instagramAccountId, contactId])
+  @@index([instagramAccountId, lastMessageAt])
+}
+
+model Message {
+  id                 String           @id @default(cuid())
+  conversationId     String
+  metaMessageId      String?          @unique // Meta Graph API Message ID (mid.$...)
+  direction          MessageDirection
+  
+  text               String?          @db.Text
+  attachments        Json?            // Buttons, Quick Replies, Image URLs
+  
+  status             MessageStatus    @default(QUEUED)
+  errorMessage       String?
+  
+  // Safety & Tagging
+  isDisclosure       Boolean          @default(false)
+  isHumanAgentTag    Boolean          @default(false) // Tagged for 7-day human-agent response
+  safetyChecksPassed Boolean          @default(true)
+  paraphraseVariantId Int?            // ID of the paraphrase template used (1-5+)
+  
+  createdAt          DateTime         @default(now())
+  sentAt             DateTime?
+
+  conversation       Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model FlowExecution {
+  id                 String           @id @default(cuid())
+  flowId             String
+  contactId          String
+  currentNodeId      String
+  stateData          Json             // Session variables
+  status             String           // RUNNING, WAITING_USER, PENDING_REVIEW, COMPLETED, CANCELLED
+  lastStepAt         DateTime         @default(now())
+
+  flow               AutomationFlow   @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  contact            Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId, status])
+}
+
+model AuditLog {
+  id                 String           @id @default(cuid())
+  workspaceId        String
+  userId             String?
+  actorType          String           // SYSTEM, AUTOMATION_ENGINE, HUMAN_AGENT, WEBHOOK_RECEIVER
+  eventType          String           // MESSAGE_SENT, COMPLIANCE_DISCLOSURE, OPT_OUT_TRIGGERED, WINDOW_EXPIRED_DROP, CIRCUIT_BREAKER_TRIPPED, SAFE_MODE_REVIEW
+  targetIgsid        String?
+  payloadHash        String           // SHA-256 hash of payload for compliance proof without storing excessive PII
+  detailsJson        Json
+  createdAt          DateTime         @default(now())
+
+  workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user               User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, eventType, createdAt])
+}
+
+model RateLimitConfig {
+  id                   String           @id @default(cuid())
+  workspaceId          String           @unique
+  maxMessagesPerMinute Int              @default(30)
+  maxMessagesPerHour   Int              @default(250)   // Refined conservative default
+  maxMessagesPerDay    Int              @default(1500)  // Refined conservative default
+  viralThresholdPerMin Int              @default(12)    // Refined viral trigger (12 comments/min)
+  cooldownSecPerUser   Int              @default(8)     // Refined per-recipient cooldown (8s minimum)
+
+  workspace            Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model KnowledgeBase {
+  id                 String           @id @default(cuid())
+  workspaceId        String
+  name               String
+  brandToneGuide     String?          @db.Text
+  defaultPersona     String?          @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  workspace          Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  documents          KnowledgeDocument[]
+}
+
+model KnowledgeDocument {
+  id                 String           @id @default(cuid())
+  knowledgeBaseId    String
+  title              String
+  content            String           @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  knowledgeBase      KnowledgeBase    @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+}
