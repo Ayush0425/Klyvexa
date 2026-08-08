@@ -125,7 +125,7 @@ export async function subscribePageToWebhooks(
   pageId: string,
   pageAccessToken: string
 ): Promise<boolean> {
-  const subscribedFields = 'messages,messaging_postbacks,message_reactions,message_reads,message_deliveries,feed';
+  const subscribedFields = 'messages,messaging_postbacks,message_reactions,message_reads,message_deliveries,feed,comments';
   const url = `${META_GRAPH_BASE}/${pageId}/subscribed_apps?subscribed_fields=${encodeURIComponent(subscribedFields)}&access_token=${pageAccessToken}`;
 
   const res = await fetch(url, {
