@@ -9,9 +9,9 @@ const META_GRAPH_VERSION = 'v20.0';
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
 export const REQUIRED_META_SCOPES = [
-  'instagram_business_basic',
-  'instagram_business_manage_messages',
-  'instagram_business_manage_comments',
+  'instagram_basic',
+  'instagram_manage_messages',
+  'instagram_manage_comments',
   'pages_show_list',
   'pages_manage_metadata',
 ];
