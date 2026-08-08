@@ -9,6 +9,7 @@ const META_GRAPH_VERSION = 'v20.0';
 const META_GRAPH_BASE = `https://graph.facebook.com/${META_GRAPH_VERSION}`;
 
 export const REQUIRED_META_SCOPES = [
+  'public_profile',
   'instagram_basic',
   'instagram_manage_messages',
   'instagram_manage_comments',
